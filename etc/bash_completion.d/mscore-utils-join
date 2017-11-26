@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# bash completion for mscore-utils-join
+
+if [[ "$(which register-python-argcomplete)" ]]; then
+  # Rich man's Bash completion - Python argcomplete
+  eval "$(register-python-argcomplete mscore-utils-join)"
+elif [[ "$(type -t _parse_help)" == "function" ]]; then
+  # Poor man's Bash completion - parse command's --help output
+  function _mscore_utils_join() {
+    local cur
+    _get_comp_words_by_ref cur
+    COMPREPLY=($(compgen -W "$(_parse_help "$1")" -- "${cur}"))
+    ((${#COMPREPLY[@]} > 0)) || return 1
+  }
+  complete -o default -o bashdefault -F _mscore_utils_join mscore-utils-join
+fi

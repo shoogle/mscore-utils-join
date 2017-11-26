@@ -1,0 +1,7 @@
+# Backup and autosave files
+*~
+.*,
+
+# Python generated files
+__pycache__
+*.pyc
