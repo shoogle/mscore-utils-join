@@ -1,23 +1,55 @@
 import xml.etree.ElementTree as ET   # XML parser: <tag attrib="val">text</tag>
 import fractions
+import string
+import jinja2
+import yaml
+import sys
+import os
+import datetime
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 class ScoreFile:
-    def __init__(self, filePath):
+    def __init__(self, filePath, dictionary=None):
         self.filePath = filePath
-        self.tree = ET.parse(filePath)
-        self.root = self.tree.getroot()
-        self.staves = self.root.findall('Score/Staff')
+        if dictionary:
+            self.root = ET.fromstring(self.substitute_variables(dictionary))
+            self.tree = ET.ElementTree(self.root)
+        else:
+            self.tree = ET.parse(filePath)
+            self.root = self.tree.getroot()
+        self.score = self.root.find('Score')
+
+    def substitute_variables(self, dictionary):
+        dirname, basename = os.path.split(self.filePath)
+        env = jinja2.Environment(autoescape=jinja2.select_autoescape(['mscx']),loader=jinja2.FileSystemLoader(searchpath=dirname))
+        s = env.get_template(basename)
+        g = {
+            'EOL': '\n',
+            'DATE': datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+        }
+        return s.render(**g, **dictionary)
+
+    def staves(self):
+        return self.score.findall('Staff')
+
+    def firstStaff(self):
+        return self.score.find('Staff')
+
+    def spatium(self):
+        return float(self.score.find('Style/Spatium').text)
 
     def maxElementID(self):
         max_ID = 0
-        for staff in self.staves:
+        for staff in self.staves():
             for elementWithID in staff.findall('.//*[@id]'):
                 id = int(elementWithID.get('id'))
                 max_ID = max(id, max_ID)
         return max_ID
 
     def incrementElementIDs(self, offset):
-        for staff in self.staves:
+        for staff in self.staves():
             for elementWithID in staff.findall('.//*[@id]'):
                 ID = int(elementWithID.get('id'))
                 elementWithID.set('id', str(ID + offset))
@@ -31,20 +63,20 @@ class ScoreFile:
 
     def maxMeasureNumber(self):
         max_measure_num = 0
-        for staff in self.staves:
+        for staff in self.staves():
             for measure in staff.findall('.//Measure[@number]'):
                 measure_num = int(measure.get('number'))
                 max_measure_num = max(measure_num, max_measure_num)
         return max_measure_num
 
     def incrementMeasureNumbers(self, offset):
-        for staff in self.staves:
+        for staff in self.staves():
             for measure in staff.findall('.//Measure[@number]'):
                 measure_num = int(measure.get('number'))
                 measure.set('number', str(measure_num + offset))
 
     def incrementTicks(self, offset):
-        for staff in self.staves:
+        for staff in self.staves():
             for tick in staff.findall('.//tick'):
                 tick_num = int(tick.text)
                 tick.text = str(tick_num + offset)
@@ -53,7 +85,7 @@ class ScoreFile:
         division = int(self.root.find('Score/Division').text) # ticks per quarter note
         duration = fractions.Fraction(0,4)
         prevTimeSig = fractions.Fraction(4,4)
-        for measure in self.staves[0].findall('Measure'):
+        for measure in self.firstStaff().findall('Measure'):
             timeSig = measure.find('TimeSig')
             if timeSig:
                 n = int(timeSig.find('sigN').text)
@@ -71,10 +103,31 @@ class ScoreFile:
         layoutBreak = ET.Element('LayoutBreak')
         subtype = ET.SubElement(layoutBreak, 'subtype')
         subtype.text = type
-        finalMeasure = self.staves[0].findall('Measure')[-1]
+        finalMeasure = self.firstStaff().findall('Measure')[-1]
         finalMeasure.append(layoutBreak)
 
-    def append(self, scoreFile, addLineBreak, addPageBreak, addSectionBreak):
+    def scale_frame_height(self, spatium):
+        for h in self.score.findall('.//height'):
+            h.text = str(float(h.text) * self.spatium() / spatium)
+
+    def add_text_styles_from_score_file(self, score_file):
+        style = self.score.find('Style')
+        for text_style in score_file.score.findall('Style/TextStyle/name/..'):
+            style_name = text_style.find('name').text
+            # Only add named styles that do not already exist in this score
+            if style.find('TextStyle[name=\'' + style_name + '\']') == None:
+                style.append(text_style)
+
+    def prepend_cover(self, cover):
+        cover.scale_frame_height(self.spatium())
+        firstStaff = self.firstStaff()
+        for frame in reversed(cover.firstStaff()):
+            if frame.tag == "Measure":
+                break
+            firstStaff.insert(0, frame)
+        self.add_text_styles_from_score_file(cover)
+
+    def append_score(self, scoreFile, addLineBreak, addPageBreak, addSectionBreak):
         if addPageBreak:
             self.appendLayoutBreak('page')
         elif addLineBreak:
@@ -85,7 +138,7 @@ class ScoreFile:
             scoreFile.incrementMeasureNumbers(self.maxMeasureNumber())
         scoreFile.incrementElementIDs(self.maxElementID())
         scoreFile.incrementTicks(self.ticks())
-        for staff in self.staves:
+        for staff in self.staves():
             staff_ID = int(staff.get('id'))
             sameStaffInNextScore = scoreFile.root.find("Score/Staff[@id='"+str(staff_ID)+"']")
             try:

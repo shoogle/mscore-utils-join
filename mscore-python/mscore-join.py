@@ -20,6 +20,8 @@ breaks.add_argument("-l", "--line-breaks", action="store_true", help="add line b
 breaks.add_argument("-p", "--page-breaks", action="store_true", help="add page breaks between scores (can't be used with -l)")
 
 parser.add_argument("-s", "--section-breaks", action="store_true", help="add section breaks between scores") # can use with with -l and -p
+parser.add_argument("-c", "--cover", type=str, action="append", help="insert frames from score file")
+parser.add_argument("-d", "--dictionary", type=str, action="append", help="path to YAML (.yml) file with variable substitutions")
 
 try:
     argcomplete.autocomplete(parser)
@@ -32,10 +34,21 @@ args = parser.parse_args()
 
 import score
 import sys
+import yaml
+
+dictionary = {}
+if args.dictionary:
+    for path in args.dictionary:
+        d = yaml.safe_load(open(path))
+        dictionary.update(d)
 
 firstScore = score.ScoreFile(args.files.pop(0));
 
+if args.cover:
+    for cover in reversed(args.cover):
+        firstScore.prepend_cover(score.ScoreFile(cover, dictionary))
+
 for file in args.files:
-    firstScore.append(score.ScoreFile(file), args.line_breaks, args.page_breaks, args.section_breaks)
+    firstScore.append_score(score.ScoreFile(file), args.line_breaks, args.page_breaks, args.section_breaks)
 
 firstScore.writeToFile(sys.stdout.buffer)
