@@ -49,8 +49,18 @@ if args.title_frame:
 
     set_title_from_tag("Composer", "composer")
     set_title_from_tag("Lyricist", "lyricist")
-    set_title_from_tag("Work Title", "workTitle")
-    if set_title_from_tag("Movement Title", "movementTitle"):
+
+    mvt = song.get_meta_tag("movementTitle")
+
+    if mvt == None or mvt == "" or mvt == song.get_meta_tag("workTitle"):
+        # work contains only one song
+        set_title_from_tag("Title", "workTitle")
+        song.set_meta_tag("movementTitle", "")
+        song.set_meta_tag("movementNumber", "")
+    else:
+        # work contains multiple songs, so treat this song as a movement
         song.delete_frame_text("Title")
+        set_title_from_tag("Work Title", "workTitle")
+        set_title_from_tag("Movement Title", "movementTitle")
 
 song.writeToFile(sys.stdout.buffer)
