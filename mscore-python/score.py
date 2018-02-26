@@ -6,7 +6,8 @@ class ScoreFile:
         self.filePath = filePath
         self.tree = ET.parse(filePath)
         self.root = self.tree.getroot()
-        self.staves = self.root.findall('Score/Staff')
+        self.score = self.root.find('Score')
+        self.staves = self.score.findall('Staff')
 
     def maxElementID(self):
         max_ID = 0
@@ -93,6 +94,50 @@ class ScoreFile:
                     staff.append(child)
             except TypeError:
                 break # fewer staves in the next score and now we've used them all
+
+    def get_meta_tag(self, tag_name):
+        tag = self.score.find("metaTag[@name='%s']" % tag_name) # get tag if it exists
+        if tag == None:
+            return None
+        return tag.text
+
+    def set_meta_tag(self, tag_name, value):
+        tag = self.score.find("metaTag[@name='%s']" % tag_name) # get tag if it exists
+        if tag == None:
+            # tag does not exist, so create it
+            tag = ET.Element("metaTag")
+            tag.set("name", tag_name)
+            self.score.append(tag)
+        tag.text = value
+
+    def set_frame_text(self, style, value, old_style=None):
+        if old_style == None:
+            old_style = style
+        vframe = self.staves[0].find("VBox") # get vertical frame if it exists
+        if vframe == None:
+            # vertical frame does not exist, so create it
+            vframe = ET.Element("VBox")
+            self.staves[0].insert(tag, 0) # insert at beginning of staff
+        # get text element that matches old_style, or create if there isn't one
+        text = vframe.find("Text[style='%s']" % old_style)
+        if text == None:
+            text = ET.Element("Text")
+            ttext = ET.SubElement(text, "text")
+            tstyle = ET.SubElement(text, "style")
+            tstyle.text = old_style
+            vframe.append(text)
+        text.find("style").text = style
+        text.find("text").text = value
+
+    def delete_frame_text(self, style):
+        vframe = self.staves[0].find("VBox") # get vertical frame if it exists
+        if vframe == None:
+            return False
+        text = vframe.find("Text[style='%s']" % style)
+        if text == None:
+            return False
+        vframe.remove(text)
+        return True
 
     def writeToFile(self, file):
         self.tree.write(file, encoding="UTF-8", xml_declaration="True")
