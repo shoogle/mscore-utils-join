@@ -107,11 +107,12 @@ class ScoreFile:
         return duration * division * 4
 
     def appendLayoutBreak(self, type): # line, page, section
-        layoutBreak = ET.Element('LayoutBreak')
-        subtype = ET.SubElement(layoutBreak, 'subtype')
-        subtype.text = type
-        finalMeasure = self.firstStaff().findall('Measure')[-1]
-        finalMeasure.append(layoutBreak)
+        if self.firstStaff().find('Measure') is not None:
+            layoutBreak = ET.Element('LayoutBreak')
+            subtype = ET.SubElement(layoutBreak, 'subtype')
+            subtype.text = type
+            finalMeasure = self.firstStaff().findall('Measure')[-1]
+            finalMeasure.append(layoutBreak)
 
     def scale_frame_height(self, spatium):
         for h in self.score.findall('.//height'):
