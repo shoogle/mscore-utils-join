@@ -86,7 +86,14 @@ class ScoreFile:
         duration = fractions.Fraction(0,4)
         prevTimeSig = fractions.Fraction(4,4)
         for measure in self.firstStaff().findall('Measure'):
-            timeSig = measure.find('TimeSig')
+            timeSig = None # Does measure contain a time signature?
+            for element in measure:
+                if element.tag == 'TimeSig':
+                    timeSig = element
+                    break # TimeSig found, so stop looking
+                elif element.tag in ['Note', 'Rest']:
+                    break # ignore possible courtesy TimeSig at end of measure.
+            children = list(measure)
             if timeSig:
                 n = int(timeSig.find('sigN').text)
                 d = int(timeSig.find('sigD').text)
