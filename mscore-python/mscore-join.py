@@ -32,9 +32,15 @@ args = parser.parse_args()
 
 # argcomplete has exited by this point, so here comes the actual program code.
 
+import recipe
 import score
 import sys
 import yaml
+
+if args.files[0].endswith(".yml"):
+    r = recipe.Recipe(yaml.safe_load(open(args.files[0])))
+    r.run()
+    exit()
 
 dictionary = {}
 if args.dictionary:
@@ -42,7 +48,7 @@ if args.dictionary:
         d = yaml.safe_load(open(path))
         dictionary.update(d)
 
-firstScore = score.ScoreFile(args.files.pop(0));
+firstScore = score.ScoreFile(args.files.pop(0))
 
 if args.cover:
     for cover in reversed(args.cover):
