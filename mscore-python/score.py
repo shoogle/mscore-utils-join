@@ -20,6 +20,7 @@ class ScoreFile:
             self.tree = ET.parse(filePath)
             self.root = self.tree.getroot()
         self.score = self.root.find('Score')
+        self.style = self.score.find('Style')
 
     def substitute_variables(self, dictionary):
         dirname, basename = os.path.split(self.filePath)
@@ -31,14 +32,73 @@ class ScoreFile:
         }
         return s.render(**g, **dictionary)
 
+    def parts(self):
+        self.score.findall('Part')
+
+    def staff(self, idx):
+        self.score.find("Staff[@id='"+str(idx)+"']")
+
+    def staff_def(self, idx):
+        self.score.find("Part/Staff[@id='"+str(idx)+"']")
+
     def staves(self):
         return self.score.findall('Staff')
 
     def firstStaff(self):
         return self.score.find('Staff')
 
+    def get_style(self, name):
+        return self.style.find(name)
+
+    def set_style(self, name, value):
+        style = self.get_style(name)
+        if style is None:
+            style = ET.Element(name)
+            self.style.append(style)
+        style.text = value
+
+    @property
     def spatium(self):
-        return float(self.score.find('Style/Spatium').text)
+        return float(self.get_style('Spatium').text)
+
+    @spatium.setter
+    def spatium(self, value):
+        self.set_style("Spatium", value)
+
+    def _metaTag(self, name):
+        return self.score.find("metaTag[@name=\'" + name + "\']")
+
+    def __getitem__(self, key):
+        el = self._metaTag(key)
+        return None if el is None else el.text
+
+    def __setitem__(self, key, value):
+        el = self._metaTag(key)
+        if el is None:
+            el = ET.Element("metaTag")
+            el.set("name", key)
+        el.text = value
+
+    def explicitCMajorKeySig(self):
+        # insert a C Major key signature if no key is specified
+        for staff in self.staves():
+            firstMeasure = staff.find('Measure')
+            if firstMeasure is None:
+                continue
+            firstVoice = firstMeasure.find('voice')
+            if firstVoice is None:
+                continue
+            firstVoice.find('KeySig')
+            for element in firstVoice:
+                if element.tag == 'KeySig':
+                    break # staff already has an explicit keysig
+                if element.tag in ['Chord', 'Rest']:
+                    # no keysig before first Chord/Rest, so insert one now
+                    keysig = ET.Element('KeySig')
+                    accidental = ET.SubElement(keysig, 'accidental')
+                    accidental.text = "0" # C Major
+                    firstVoice.insert(0, keysig)
+                    break
 
     def maxElementID(self):
         max_ID = 0
@@ -116,7 +176,7 @@ class ScoreFile:
 
     def scale_frame_height(self, spatium):
         for h in self.score.findall('.//height'):
-            h.text = str(float(h.text) * self.spatium() / spatium)
+            h.text = str(float(h.text) * self.spatium / spatium)
 
     def add_text_styles_from_score_file(self, score_file):
         style = self.score.find('Style')
@@ -127,7 +187,7 @@ class ScoreFile:
                 style.append(text_style)
 
     def prepend_cover(self, cover):
-        cover.scale_frame_height(self.spatium())
+        cover.scale_frame_height(self.spatium)
         firstStaff = self.firstStaff()
         for frame in reversed(cover.firstStaff()):
             if frame.tag == "Measure":
@@ -144,6 +204,7 @@ class ScoreFile:
             self.appendLayoutBreak('section')
         else:
             scoreFile.incrementMeasureNumbers(self.maxMeasureNumber())
+        scoreFile.explicitCMajorKeySig()
         scoreFile.incrementElementIDs(self.maxElementID())
         scoreFile.incrementTicks(self.ticks())
         for staff in self.staves():

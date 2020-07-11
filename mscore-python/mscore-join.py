@@ -42,15 +42,28 @@ if args.files[0].endswith(".yml"):
     r.run()
     exit()
 
+firstScore = score.ScoreFile(args.files.pop(0))
+
 dictionary = {}
 if args.dictionary:
     for path in args.dictionary:
         d = yaml.safe_load(open(path))
         dictionary.update(d)
-
-firstScore = score.ScoreFile(args.files.pop(0))
+    score_id = dictionary['id']['musescore']
+    if isinstance(score_id, int) or score_id.isdigit():
+        score_url = "https://musescore.com/score/{0}".format(score_id)
+    else:
+        score_url = ""
+    firstScore['source'] = score_url
 
 if args.cover:
+    firstScore['movementNumber'] = ""
+    firstScore['movementTitle'] = ""
+    firstScore.set_style('footerFirstPage', '0')
+    firstScore.score.find('showInvisible').text = '0'
+    firstScore.score.find('showUnprintable').text = '0'
+    firstScore.score.find('showFrames').text = '0'
+    firstScore.score.find('showMargins').text = '0'
     for cover in reversed(args.cover):
         firstScore.prepend_cover(score.ScoreFile(cover, dictionary))
 
