@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET   # XML parser: <tag attrib="val">text</tag>
 import fractions
 import string
 import jinja2
+import re
 import yaml
 import sys
 import os
@@ -246,6 +247,34 @@ class ScoreFile:
                 break
             firstStaff.insert(0, frame)
         self.add_text_styles_from_score_file(cover)
+
+    def fix_instrument_names(self):
+        instruments = {}
+        for instrument in self.score.findall(".//Instrument"):
+            long_name = instrument.find("longName").text
+            if long_name in instruments:
+                instruments[long_name].append(instrument)
+            else:
+                instruments[long_name] = [instrument]
+        for long_name, occurrences in instruments.items():
+            total = len(occurrences)
+            match = re.search("^(([A-H]♭?) )?(.*?)( in (.*))?$", long_name)
+            assert(match)
+            key = match.group(2)
+            if not key:
+                key = match.group(5)
+            long = match.group(3)
+            match = re.search("^(([A-H]♭?) )?(.*?)( in (.*))?$", occurrences[0].find("shortName").text)
+            assert(match)
+            short = match.group(3)
+            for num, instrument in enumerate(occurrences, 1):
+                for tag in ["longName", "shortName", "trackName"]:
+                    text = short if tag == "shortName" else long
+                    if total > 1:
+                        text += " " + str(num)
+                    if key:
+                        text += ("\n" if tag == "shortName" else " ") + "in " + key
+                    instrument.find(tag).text = text
 
     def append_score(self, scoreFile, addLineBreak, addPageBreak, addSectionBreak):
         # score1 must include all parts and staves that are in score2.

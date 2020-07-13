@@ -23,6 +23,9 @@ parser.add_argument("-s", "--section-breaks", action="store_true", help="add sec
 parser.add_argument("-c", "--cover", type=str, action="append", help="insert frames from score file")
 parser.add_argument("-d", "--dictionary", type=str, action="append", help="path to YAML (.yml) file with variable substitutions")
 
+parser.add_argument("-t", "--template", action="store_true", help="fix instrument names in a template score")
+
+
 try:
     argcomplete.autocomplete(parser)
 except NameError:
@@ -43,6 +46,11 @@ if args.files[0].endswith(".yml"):
     exit()
 
 firstScore = score.ScoreFile(args.files.pop(0))
+
+if args.template:
+    firstScore.fix_instrument_names()
+    firstScore.writeToFile(sys.stdout.buffer)
+    exit()
 
 dictionary = {}
 if args.dictionary:
