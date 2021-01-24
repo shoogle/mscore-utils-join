@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET   # XML parser: <tag attrib="val">text</tag>
 import fractions
 import string
-import jinja2
+#import jinja2
 import re
 import yaml
 import sys
@@ -249,25 +249,44 @@ class ScoreFile:
         self.add_text_styles_from_score_file(cover)
 
     def fix_instrument_names(self):
-        instruments = {}
-        for instrument in self.score.findall(".//Instrument"):
+        parts = {}
+        for part in self.score.findall(".//Instrument/.."):
+            instrument = part.find("Instrument")
             long_name = instrument.find("longName").text
-            if long_name in instruments:
-                instruments[long_name].append(instrument)
+            if long_name in parts:
+                parts[long_name].append(part)
             else:
-                instruments[long_name] = [instrument]
-        for long_name, occurrences in instruments.items():
+                parts[long_name] = [part]
+        for long_name, occurrences in parts.items():
+            keys = {
+                "C": "Do",
+                "D": "Re",
+                "E": "Mi",
+                "F": "Fa",
+                "G": "Sol",
+                "A": "La",
+                "B": "Si",
+            }
+            short_name = occurrences[0].find("Instrument").find("shortName").text
+            eprint(long_name + "\t\t\t" + short_name)
+            for let, name in keys.items():
+                long_name = re.sub("( in)? "+name+"$", r" in "+let, long_name)
+                long_name = re.sub("(^| )"+name+" ", r"\1"+let+r" ", long_name)
+                short_name = re.sub("( in)? "+name+"$", r" in "+let, short_name)
+                short_name = re.sub("(^| )"+name+" ", r"\1"+let+r" ", short_name)
+            eprint(long_name + "\t\t\t" + short_name)
             total = len(occurrences)
-            match = re.search("^(([A-H]♭?) )?(.*?)( in (.*))?$", long_name)
+            match = re.search(r"^(([A-H]♭?) )?(.*?)( in (.*))?$", long_name)
             assert(match)
             key = match.group(2)
             if not key:
                 key = match.group(5)
             long = match.group(3)
-            match = re.search("^(([A-H]♭?) )?(.*?)( in (.*))?$", occurrences[0].find("shortName").text)
+            match = re.search(r"^(([A-H]♭?) )?(.*?)([ \n]in (.*))?$", short_name)
             assert(match)
             short = match.group(3)
-            for num, instrument in enumerate(occurrences, 1):
+            for num, part in enumerate(occurrences, 1):
+                instrument = part.find("Instrument")
                 for tag in ["longName", "shortName", "trackName"]:
                     text = short if tag == "shortName" else long
                     if total > 1:
@@ -275,6 +294,8 @@ class ScoreFile:
                     if key:
                         text += ("\n" if tag == "shortName" else " ") + "in " + key
                     instrument.find(tag).text = text
+                part.find("trackName").text = instrument.find("trackName").text
+        self.set_style("shortInstrumentAlign", "center,center")
 
     def append_score(self, scoreFile, addLineBreak, addPageBreak, addSectionBreak):
         # score1 must include all parts and staves that are in score2.
